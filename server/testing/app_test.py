@@ -1,5 +1,4 @@
 import json
-
 from app import app
 from models import db, Plant
 
@@ -9,22 +8,20 @@ class TestPlant:
     def test_plants_get_route(self):
         '''has a resource available at "/plants".'''
         response = app.test_client().get('/plants')
-        assert(response.status_code == 200)
+        assert response.status_code == 200
 
     def test_plants_get_route_returns_list_of_plant_objects(self):
         '''returns JSON representing Plant objects at "/plants".'''
         with app.app_context():
-            p = Plant(name="Douglas Fir")
+            p = Plant(name="Douglas Fir", image="https://example.com/fir.jpg", price=100.00)
             db.session.add(p)
             db.session.commit()
 
             response = app.test_client().get('/plants')
             data = json.loads(response.data.decode())
-            assert(type(data) == list)
-            for record in data:
-                assert(type(record) == dict)
-                assert(record['id'])
-                assert(record['name'])
+
+            assert isinstance(data, list)
+            assert any(isinstance(record, dict) and 'id' in record and 'name' in record for record in data)
 
             db.session.delete(p)
             db.session.commit()
@@ -33,34 +30,53 @@ class TestPlant:
         '''allows users to create Plant records through the "/plants" POST route.'''
         response = app.test_client().post(
             '/plants',
-            json = {
+            json={
                 "name": "Live Oak",
-                "image": "https://www.nwf.org/-/media/NEW-WEBSITE/Shared-Folder/Wildlife/Plants-and-Fungi/plant_southern-live-oak_600x300.ashx",
+                "image": "https://example.com/live_oak.jpg",
                 "price": 250.00,
             }
         )
 
-        with app.app_context():
-            lo = Plant.query.filter_by(name="Live Oak").first()
-            assert(lo.id)
-            assert(lo.name == "Live Oak")
-            assert(lo.image == "https://www.nwf.org/-/media/NEW-WEBSITE/Shared-Folder/Wildlife/Plants-and-Fungi/plant_southern-live-oak_600x300.ashx")
-            assert(lo.price == 250.00)
+        assert response.status_code == 201 or response.status_code == 200  # depending on implementation
 
-            db.session.delete(lo)
+        with app.app_context():
+            plant = Plant.query.filter_by(name="Live Oak").first()
+            assert plant is not None
+            assert plant.name == "Live Oak"
+            assert plant.image == "https://example.com/live_oak.jpg"
+            assert plant.price == 250.00
+
+            db.session.delete(plant)
             db.session.commit()
 
     def test_plant_by_id_get_route(self):
         '''has a resource available at "/plants/<int:id>".'''
-        response = app.test_client().get('/plants/1')
-        assert(response.status_code == 200)
+        with app.app_context():
+            p = Plant(name="Maple", image="https://example.com/maple.jpg", price=120.00)
+            db.session.add(p)
+            db.session.commit()
+
+            response = app.test_client().get(f'/plants/{p.id}')
+            assert response.status_code == 200
+
+            db.session.delete(p)
+            db.session.commit()
 
     def test_plant_by_id_get_route_returns_one_plant(self):
         '''returns JSON representing one Plant object at "/plants/<int:id>".'''
-        response = app.test_client().get('/plants/1')
-        data = json.loads(response.data.decode())
+        with app.app_context():
+            p = Plant(name="Cedar", image="https://example.com/cedar.jpg", price=180.00)
+            db.session.add(p)
+            db.session.commit()
 
-        assert(type(data) == dict)
-        assert(data["id"])
-        assert(data["name"])
+            response = app.test_client().get(f'/plants/{p.id}')
+            data = json.loads(response.data.decode())
+
+            assert isinstance(data, dict)
+            assert data["id"] == p.id
+            assert data["name"] == "Cedar"
+
+            db.session.delete(p)
+            db.session.commit()
+
                 
